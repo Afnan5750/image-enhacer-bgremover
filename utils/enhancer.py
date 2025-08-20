@@ -3,9 +3,11 @@ import cv2
 from PIL import Image
 from gfpgan import GFPGANer
 
-MODEL_PATH = os.path.join("models", "GFPGANv1.3.pth")
+def enhance_with_gfpgan(in_path: str, out_path: str, upscale: int, model_version: str):
+    # Determine model path based on selected version
+    model_file = f"GFPGANv{model_version}.pth"
+    MODEL_PATH = os.path.join("models", model_file)
 
-def enhance_with_gfpgan(in_path: str, out_path: str, upscale: int = 2):
     if not os.path.isfile(MODEL_PATH):
         raise FileNotFoundError(f"GFPGAN model not found at {MODEL_PATH}")
 

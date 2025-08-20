@@ -46,15 +46,28 @@ def index():
 
     if request.method == "POST":
         file = request.files.get("image")
-        upscale = int(request.form.get("upscale", 2))
+        upscale = request.form.get("upscale")               
+        model_version = request.form.get("model_version")   
 
+        # Log selections to console
+        print(f"[INFO] Selected Upscale: {upscale}, Model Version: {model_version}")
+
+        # Check if file is uploaded
         if not file or file.filename == "":
             flash("Please upload an image.")
+            return render_template("index.html")
+
+        # Check if dropdowns are selected
+        if not upscale or not model_version:
+            flash("Please select both Upscale and Model options.")
             return render_template("index.html")
 
         if not allowed_file(file.filename):
             flash("Unsupported file type.")
             return render_template("index.html")
+
+        # Convert upscale to int
+        upscale = int(upscale)
 
         # Save original
         filename = secure_filename(file.filename)
@@ -67,8 +80,10 @@ def index():
         # Save result
         out_name = f"{in_name.rsplit('.', 1)[0]}_enhanced.png"
         out_path = os.path.join(ENHANCE_RESULT, out_name)
+
         try:
-            enhance_with_gfpgan(in_path, out_path, upscale)
+            # Call enhancer dynamically
+            enhance_with_gfpgan(in_path, out_path, upscale=upscale, model_version=model_version)
             enhanced_filename = out_name
         except Exception as e:
             flash(str(e))
