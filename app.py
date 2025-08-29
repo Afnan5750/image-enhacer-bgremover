@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from utils.enhancer import enhance_with_gfpgan
 from rembg import remove, new_session
 from PIL import Image
+from flask import jsonify, send_file
 
 # ----------------------------
 # Config
@@ -49,15 +50,12 @@ def index():
         upscale = request.form.get("upscale")               
         model_version = request.form.get("model_version")   
 
-        # Log selections to console
         print(f"[INFO] Selected Upscale: {upscale}, Model Version: {model_version}")
 
-        # Check if file is uploaded
         if not file or file.filename == "":
             flash("Please upload an image.")
             return render_template("index.html")
 
-        # Check if dropdowns are selected
         if not upscale or not model_version:
             flash("Please select both Upscale and Model options.")
             return render_template("index.html")
@@ -69,20 +67,18 @@ def index():
         # Convert upscale to int
         upscale = int(upscale)
 
-        # Save original
+        # --- Save with original filename (no timestamp) ---
         filename = secure_filename(file.filename)
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        in_name = f"{stamp}_{filename}"
-        in_path = os.path.join(ENHANCE_UPLOAD, in_name)
+        in_path = os.path.join(ENHANCE_UPLOAD, filename)
         file.save(in_path)
-        original_filename = in_name
+        original_filename = filename
 
-        # Save result
-        out_name = f"{in_name.rsplit('.', 1)[0]}_enhanced.png"
+        # --- Output filename: originalname_enhanced.png ---
+        name_without_ext = filename.rsplit(".", 1)[0]
+        out_name = f"{name_without_ext}_enhanced.png"
         out_path = os.path.join(ENHANCE_RESULT, out_name)
 
         try:
-            # Call enhancer dynamically
             enhance_with_gfpgan(in_path, out_path, upscale=upscale, model_version=model_version)
             enhanced_filename = out_name
         except Exception as e:
@@ -93,6 +89,7 @@ def index():
         original=original_filename,
         enhanced=enhanced_filename
     )
+
 
 
 @app.route("/uploads/enhance/<path:filename>")
@@ -116,17 +113,16 @@ def bgremove_page():
 @app.route("/remove-bg", methods=["POST"])
 def remove_bg():
     image_file = request.files['image']
-    filename = secure_filename(image_file.filename)
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    in_name = f"{stamp}_{filename}"
-    in_path = os.path.join(BG_UPLOAD, in_name)
+    original_filename = secure_filename(image_file.filename)  # e.g., Adnan_Bhai.png
+    in_path = os.path.join(BG_UPLOAD, original_filename)
     image_file.save(in_path)
 
     input_image = Image.open(in_path).convert("RGBA")
     output_image = remove(input_image, session=session)
 
     # Save result
-    out_name = f"{in_name.rsplit('.', 1)[0]}_removebg.png"
+    name_without_ext = original_filename.rsplit(".", 1)[0]
+    out_name = f"{name_without_ext}_removebg.png"
     out_path = os.path.join(BG_RESULT, out_name)
     output_image.save(out_path, format="PNG")
 
@@ -138,8 +134,44 @@ def remove_bg():
 
     return {
         'preview': f"data:image/png;base64,{img_base64}",
-        'filename': out_name
+        'filename': out_name,
+        'original_filename': original_filename
     }
+
+
+@app.route("/download-bg-color", methods=["POST"])
+def download_bg_color():
+    data = request.get_json()
+    filename = data.get("filename")  # this is already "Adnan_Bhai_removebg.png"
+    result_path = os.path.join(BG_RESULT, filename)
+    
+    if not os.path.exists(result_path):
+        return {"error": "File not found"}, 404
+
+    img = Image.open(result_path).convert("RGBA")
+    color = data.get("color", "#ffffff")
+
+    # Handle transparent background
+    if color == "transparent":
+        bg = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    else:
+        bg = Image.new("RGBA", img.size, color)
+
+    bg.paste(img, (0, 0), img)
+
+    buf = io.BytesIO()
+    bg.save(buf, format="PNG")
+    buf.seek(0)
+
+    return send_file(
+        buf,
+        mimetype="image/png",
+        as_attachment=True,
+        download_name=filename  # original name + _removebg
+    )
+
+
+
 
 
 @app.route("/uploads/bgremove/<path:filename>")
