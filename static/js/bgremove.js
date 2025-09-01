@@ -23,7 +23,6 @@ function hideLoader() {
 
 // -------------------- Default Colors --------------------
 const presetColors = [
-  "#FFFFFF",
   "#F44336",
   "#E91E63",
   "#9C27B0",
@@ -43,6 +42,7 @@ const presetColors = [
   "#795548",
   "#9E9E9E",
   "#607D8B",
+  "#FFFFFF",
   "#000000",
 ];
 
